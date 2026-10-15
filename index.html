@@ -44,6 +44,7 @@ h1{font:700 clamp(34px,9vw,48px)/.95 var(--f-display);text-transform:uppercase;l
 
 .tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line);margin-bottom:16px}
 .tabs::-webkit-scrollbar{display:none}
+.tabs[hidden]{display:none}
 .tabs button{flex:1 0 auto;background:none;border:0;border-bottom:3px solid transparent;padding:10px 12px 8px;font:700 18px/1 var(--f-display);text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
 .tabs button[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
 
@@ -135,6 +136,9 @@ input.num{text-align:right;font:500 18px var(--f-mono);font-variant-numeric:tabu
 .legend{font:400 12px var(--f-mono);color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:6px}
 .scroll{overflow-x:auto}
+.bk{width:100%;min-height:150px;margin:8px 0;font:12px/1.4 var(--f-mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:10px}
+.authf{display:flex;flex-direction:column;gap:12px;max-width:420px;margin:8px auto}
+.authf .msg{font:500 13px/1.4 var(--f-mono);color:var(--accent);min-height:1.4em}
 .pw{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:14px}
 .pw .btn{grid-column:1/-1}
 .chart .trend{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
@@ -266,7 +270,7 @@ var MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'
 var DOW=['dom','seg','ter','qua','qui','sex','sáb'];
 var QUICK=['Supino reto','Agachamento livre','Remada curvada','Desenvolvimento','Rosca direta','Leg press'];
 
-var S={tab:'treino',tmode:'plano',mp:null,sessions:[],dias:{},metas:null,custom:[],pesos:{},pw:{data:hoje()},dt:{data:hoje(),edit:false,add:null,focus:false},H:new Map(),ready:false,mode:'carregando',draft:null,prog:{ex:null,metric:'carga'},open:null,del:null,busy:false};
+var S={tab:'treino',tmode:'plano',mp:null,sessions:[],dias:{},metas:null,custom:[],pesos:{},raw:[],bk:null,sb:null,user:null,pw:{data:hoje()},dt:{data:hoje(),edit:false,add:null,focus:false},H:new Map(),ready:false,mode:'carregando',draft:null,prog:{ex:null,metric:'carga'},open:null,del:null,busy:false};
 var store=null;
 
 function $(s){return document.querySelector(s);}
@@ -318,6 +322,87 @@ function lastOf(nome){var h=S.H.get(nome);return h?h.list[h.list.length-1]:null;
 function histMax(nome){var h=S.H.get(nome);return h?Math.max.apply(null,h.list.map(function(x){return x.maxC;})):0;}
 function setsTxt(sets){return sets.map(function(s){return fmt(s.c)+'×'+s.r;}).join('  ');}
 
+/* Supabase, usado fora do artefato (GitHub Pages). A chave anon é pública por desenho, o RLS protege os dados. */
+var SB_URL='https://pbfmyyddcqghztfkyxxk.supabase.co';
+var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBiZm15eWRkY3FnaHp0Zmt5eHhrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwODQ0ODEsImV4cCI6MjEwNzY2MDQ4MX0.B1RR3OjVOVKQinPbD3bSwzPE8vg4eHFTHwRijQdiGwU';
+var SB_LIB='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+var SB_SRI='sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o';
+function loadSb(){
+  return new Promise(function(res,rej){
+    if(window.supabase)return res();
+    var s=document.createElement('script');
+    s.src=SB_LIB;s.integrity=SB_SRI;s.crossOrigin='anonymous';
+    s.onload=res;s.onerror=rej;document.head.appendChild(s);
+  });
+}
+function sbStore(cl,uid){
+  var list=[],cbs=[];
+  function toDoc(r){var o=Object.assign({},r.doc);o.id=r.id;o.tipo=r.tipo;return o;}
+  function emit(){cbs.forEach(function(f){f(list.slice());});}
+  async function load(){
+    var all=[],from=0,step=1000;
+    for(;;){
+      var r=await cl.from('registros').select('id,tipo,doc').order('id').range(from,from+step-1);
+      if(r.error)throw r.error;
+      all=all.concat(r.data);
+      if(r.data.length<step)break;
+      from+=step;
+    }
+    list=all.map(toDoc);emit();
+  }
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)load().catch(function(){});});
+  return {
+    subscribe:function(cb,onErr){cbs.push(cb);load().catch(function(e){if(onErr)onErr(e);});return function(){};},
+    save:async function(s){
+      var o=Object.assign({},s);delete o.id;
+      var tipo=o.tipo||'sessao';delete o.tipo;
+      var row={user_id:uid,id:s.id,tipo:tipo,dia:/^\d{4}-\d{2}-\d{2}$/.test(o.data||'')?o.data:null,doc:o};
+      var r=await cl.from('registros').upsert(row,{onConflict:'user_id,id'});
+      if(r.error)throw r.error;
+      list=list.filter(function(x){return x.id!==s.id;});
+      list.push(Object.assign({},s,{tipo:tipo}));emit();
+    },
+    remove:async function(id){
+      var r=await cl.from('registros').delete().eq('id',id);
+      if(r.error)throw r.error;
+      list=list.filter(function(x){return x.id!==id;});emit();
+    }
+  };
+}
+function startSb(user){
+  S.user=user;
+  store=sbStore(S.sb,user.id);S.mode='nuvem';
+  store.subscribe(onSessions,function(){S.mode='erro';toast('Não foi possível carregar seus dados.');render();});
+  render();
+}
+function authMsg(t){var m=$('#au-m');if(m)m.textContent=t||'';}
+function authErr(e){
+  var m=String(e&&e.message||e||'');
+  if(/Invalid login/i.test(m))return 'E-mail ou senha incorretos.';
+  if(/already registered/i.test(m))return 'Esse e-mail já tem conta. Use Entrar.';
+  if(/at least|password/i.test(m))return 'A senha precisa de 8 caracteres ou mais.';
+  if(/rate|too many/i.test(m))return 'Muitas tentativas. Aguarde um pouco.';
+  return 'Não foi possível entrar. Tente de novo.';
+}
+async function authGo(novo){
+  var e=($('#au-e').value||'').trim(),p=$('#au-p').value||'';
+  if(!e||p.length<8){authMsg('Informe o e-mail e uma senha com 8 caracteres ou mais.');return;}
+  authMsg('Aguarde…');
+  try{
+    var r=novo?await S.sb.auth.signUp({email:e,password:p}):await S.sb.auth.signInWithPassword({email:e,password:p});
+    if(r.error){authMsg(authErr(r.error));return;}
+    if(r.data&&r.data.session){startSb(r.data.session.user);return;}
+    authMsg('Conta criada. Se pedir confirmação, veja seu e-mail e depois use Entrar.');
+  }catch(x){authMsg(authErr(x));}
+}
+function viewLogin(){
+  return '<form class="authf" id="f-auth" autocomplete="on"><h2>Entrar</h2>'
+    +'<p class="last">Seus treinos, dieta e peso ficam salvos na sua conta e abrem em qualquer aparelho.</p>'
+    +'<label class="f"><span class="cap">E-mail</span><input type="email" id="au-e" autocomplete="username" inputmode="email"></label>'
+    +'<label class="f"><span class="cap">Senha</span><input type="password" id="au-p" autocomplete="current-password"></label>'
+    +'<div class="rowacts"><button type="submit" class="btn sm">Entrar</button><button type="button" class="btn sm sec" data-act="signup">Criar conta</button></div>'
+    +'<p class="msg" id="au-m" role="status"></p></form>';
+}
 /* armazenamento: conta (db) quando disponível, senão este navegador */
 function dbStore(db,uid){
   var col=db.collection('data/users/'+uid);
@@ -351,9 +436,9 @@ function onSessions(list){
     else if(t==='alimentos')custom=d.itens||[];
     else if(t==='peso')pesos[d.data]=d;
   });
-  S.sessions=ss;S.dias=dias;S.metas=metas;S.custom=custom;S.pesos=pesos;buildH();S.ready=true;
+  S.raw=list;S.sessions=ss;S.dias=dias;S.metas=metas;S.custom=custom;S.pesos=pesos;buildH();S.ready=true;
   var a=document.activeElement;
-  var typing=(S.tab==='treino'||S.tab==='dieta'||S.tab==='peso')&&a&&a.matches&&a.matches('#view input,#view select');
+  var typing=(S.tab==='treino'||S.tab==='dieta'||S.tab==='peso'||S.tab==='stats')&&a&&a.matches&&a.matches('#view input,#view select,#view textarea');
   if(typing){if(S.tab==='treino')updateMeta();fillLists();}else render();
 }
 function useLocal(){
@@ -373,6 +458,14 @@ async function boot(){
     store=dbStore(db,uid);S.mode='nuvem';
     store.subscribe(onSessions,function(){useLocal();render();});
     render();
+  }else if(!window.claude&&SB_URL){
+    try{
+      await loadSb();
+      S.sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+      var g=await S.sb.auth.getSession();
+      if(g.data&&g.data.session){startSb(g.data.session.user);}
+      else{S.mode='login';render();}
+    }catch(e){useLocal();render();toast('Sem conexão com a conta. Salvando neste navegador.');}
   }else{
     useLocal();render();
   }
@@ -839,6 +932,12 @@ function viewStats(){
       +'<div class="tile"><span class="cap">Média por semana</span><span class="v'+(ps.sem!==null&&ps.sem<0?' up':'')+'">'+(ps.sem===null?'·':dlt(ps.sem,'')+'<small>kg</small>')+'</span><span class="s">'+(ps.sem===null?'precisa de 7 dias de dados':'ritmo recente, até 4 semanas')+'</span></div></div>';
     h+=pesoGrafico(ps);
   }
+  h+='<h2>Dados</h2>';
+  if(S.user)h+='<p class="rule">Conta: '+esc(S.user.email||'')+'</p>';
+  h+='<div class="rowacts"><button type="button" class="btn sm sec" data-act="bk-exp">Exportar dados</button><button type="button" class="btn sm sec" data-act="bk-imp">Importar dados</button>'
+    +(S.user?'<button type="button" class="link" data-act="logout">Sair</button>':'')+'</div>';
+  if(S.bk==='exp')h+='<textarea class="bk" id="bk-t" readonly aria-label="Seus dados em JSON">'+esc(JSON.stringify(S.raw))+'</textarea><p class="rule">Copie este texto e guarde. Para restaurar, use Importar dados.</p>';
+  if(S.bk==='imp')h+='<textarea class="bk" id="bk-t" placeholder="Cole aqui os dados exportados" aria-label="Dados para importar"></textarea><div class="rowacts"><button type="button" class="btn sm" data-act="bk-go">Importar agora</button></div>';
   return h;
 }
 function viewDieta(){
@@ -962,6 +1061,30 @@ function dietaAct(a,ds){
   else if(a==='custom'){var cf=$('#a-cf');if(cf){cf.hidden=!cf.hidden;foodPreview();}}
   else if(a==='rm-item'){d=diaDoc(S.dt.data);d.refeicoes[m].itens.splice(k,1);persistDia(d);render();}
   else if(a==='rm-meal'){d=diaDoc(S.dt.data);d.refeicoes.splice(m,1);S.dt.add=null;persistDia(d);render();}
+  else if(a==='signup'){authGo(true);}
+  else if(a==='logout'){
+    if(S.sb)S.sb.auth.signOut();
+    store=null;S.user=null;S.raw=[];S.sessions=[];S.dias={};S.pesos={};S.metas=null;S.custom=[];S.ready=false;S.H=new Map();
+    S.mode='login';render();
+  }
+  else if(a==='bk-exp'){
+    S.bk=S.bk==='exp'?null:'exp';render();
+    var te=$('#bk-t');
+    if(te){te.focus();te.select();try{navigator.clipboard.writeText(te.value).then(function(){toast('Copiado.');},function(){});}catch(x){}}
+  }
+  else if(a==='bk-imp'){S.bk=S.bk==='imp'?null:'imp';render();var ti=$('#bk-t');if(ti)ti.focus();}
+  else if(a==='bk-go'){
+    var arr;
+    try{arr=JSON.parse($('#bk-t').value);}catch(x){toast('O texto não é um JSON válido.');return;}
+    var TP=['sessao','dia','metas','alimentos','peso'];
+    if(!Array.isArray(arr)){toast('Formato inesperado.');return;}
+    var okd=arr.filter(function(d){return d&&typeof d==='object'&&typeof d.id==='string'&&d.id&&TP.indexOf(d.tipo||'sessao')>=0;});
+    if(!okd.length||okd.length>5000){toast('Nenhum registro válido.');return;}
+    if(!pronto())return;
+    okd.forEach(function(d){queueSave(d);});
+    chain=chain.then(function(){toast(okd.length+' registros importados.');});
+    S.bk=null;render();
+  }
   else if(a==='go-tab'){S.tab=ds.t;render();window.scrollTo(0,0);}
   else if(a==='rm-peso'){
     if(!pronto())return;
@@ -1131,8 +1254,10 @@ function planoAct(a,ds){
 
 function render(){
   var md=$('#mode');
-  md.textContent=S.mode==='nuvem'?'Salvo na conta':S.mode==='local'?'Salvo neste navegador':'Conectando';
+  md.textContent=S.mode==='nuvem'?'Salvo na conta':S.mode==='local'?'Salvo neste navegador':S.mode==='login'?'Entrar':S.mode==='erro'?'Sem conexão':'Conectando';
   md.className='mode'+(S.mode==='nuvem'?' on':'');
+  $('#tabs').hidden=S.mode==='login';
+  if(S.mode==='login'){$('#view').innerHTML=viewLogin();return;}
   document.querySelectorAll('#tabs button').forEach(function(b){
     if(b.dataset.tab===S.tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
   });
@@ -1317,6 +1442,7 @@ function init(){
     else if(id==='add-meal'){addMeal();}
     else if(id==='f-meta'){saveMetas();}
     else if(id==='f-peso'){salvarPeso();}
+    else if(id==='f-auth'){authGo(false);}
   });
   render();
   boot();
