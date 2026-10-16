@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="build" content="20261016163411">
+<meta name="build" content="20261016163656">
 <title>Caderno de Cargas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -265,6 +265,12 @@ h2{font:700 22px/1 var(--f-display);text-transform:uppercase;letter-spacing:.04e
 .scan .btn{background:#fff;color:#111;border-color:#fff;height:48px;min-height:48px}
 .scan .btn.sec{background:transparent;color:#fff;border-color:#777}
 .rcp .it-k{white-space:nowrap}
+.it-n.btn0{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:4px}
+.it-n.btn0:hover b{text-decoration:underline;text-underline-offset:3px}
+.it-n.btn0:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.edf{display:grid;grid-template-columns:minmax(0,1fr) 7rem;gap:8px;padding:10px 0;border-top:1px solid var(--line);align-items:end}
+.edf .sugs,.edf .last,.edf .rowacts,.edf .mform,.edf .cap2{grid-column:1/-1}
+.edf .sugs{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
 .it.fv{grid-template-columns:minmax(0,1fr) auto 40px 40px;gap:4px 6px}
 .star{color:var(--muted);width:40px}
 .star svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
@@ -966,6 +972,60 @@ function viewFav(){
   });
   return h+'</section>';
 }
+function per100(it){var k=it.g>0?100/it.g:0;return {kcal:Math.round(it.kcal*k),p:r1(it.p*k),c:r1(it.c*k),f:r1(it.f*k)};}
+function editForm(it){
+  var v=per100(it);
+  return '<form class="edf" id="edit-food" autocomplete="off">'
+    +'<label class="f"><span class="cap">Alimento</span><input type="text" id="e-nome" value="'+esc(it.nome)+'"></label>'
+    +'<label class="f"><span class="cap">Gramas</span><input type="text" id="e-g" inputmode="decimal" value="'+esc(fmt(it.g))+'"></label>'
+    +'<div class="sugs" id="e-sug" hidden></div>'
+    +'<p class="last cap2">Valores por 100 g. Alterar aqui vale só para este lançamento.</p>'
+    +'<div class="mform">'+[['e-k','Kcal',v.kcal],['e-p','Proteína g',v.p],['e-c','Carbo g',v.c],['e-f','Gordura g',v.f]].map(function(x){
+      return '<label class="f"><span class="cap">'+x[1]+'</span><input type="text" id="'+x[0]+'" inputmode="decimal" value="'+esc(fmt(x[2]))+'"></label>';
+    }).join('')+'</div>'
+    +'<p class="last" id="e-pre"></p>'
+    +'<div class="rowacts"><button type="submit" class="btn sm">Salvar</button><button type="button" class="link" data-act="edit-cancel">Cancelar</button></div></form>';
+}
+function edTarget(){
+  var e=S.dt.ed;if(!e)return null;
+  if(e.rec)return S.rec&&S.rec.ings[e.k]?{it:S.rec.ings[e.k],d:null}:null;
+  var d=diaDoc(S.dt.data),r=d.refeicoes[e.m];
+  return r&&r.itens[e.k]?{it:r.itens[e.k],d:d}:null;
+}
+function edCalc(it){
+  var nome=$('#e-nome').value.trim(),g=num($('#e-g').value);
+  var e=S.dt.ed,res={nome:nome,g:g};
+  if(!(g>0))return null;
+  if(!e.touched&&nome.toLowerCase()===String(it.nome).toLowerCase()){
+    var q=g/it.g;res.kcal=Math.round(it.kcal*q);res.p=r1(it.p*q);res.c=r1(it.c*q);res.f=r1(it.f*q);return res;
+  }
+  var f=!e.touched?foods().get(nome.toLowerCase()):null,b;
+  if(f)b={kcal:f.kcal,p:f.p,c:f.c,f:f.f};
+  else{
+    b={kcal:num($('#e-k').value),p:num($('#e-p').value),c:num($('#e-c').value),f:num($('#e-f').value)};
+    if(b.kcal<=0)b.kcal=b.p*4+b.c*4+b.f*9;
+  }
+  var k=g/100;res.kcal=Math.round(b.kcal*k);res.p=r1(b.p*k);res.c=r1(b.c*k);res.f=r1(b.f*k);
+  return res;
+}
+function edPreview(){
+  var el=$('#e-pre');if(!el)return;var t=edTarget();if(!t)return;
+  var r=edCalc(t.it);
+  el.textContent=r?'= '+r.kcal+' kcal · P '+fmt(r.p)+' · C '+fmt(r.c)+' · G '+fmt(r.f):'';
+}
+function edFillFrom(nome){
+  var f=foods().get(String(nome).toLowerCase());
+  if(f){$('#e-k').value=fmt(Math.round(f.kcal));$('#e-p').value=fmt(f.p);$('#e-c').value=fmt(f.c);$('#e-f').value=fmt(f.f);S.dt.ed.touched=false;}
+}
+function saveEdit(){
+  var t=edTarget();if(!t)return;
+  var r=edCalc(t.it);
+  if(!r||!r.nome){toast('Informe o alimento e as gramas.');return;}
+  if(r.kcal<=0&&r.p<=0&&r.c<=0&&r.f<=0){toast('Informe os valores.');return;}
+  t.it.nome=r.nome;t.it.g=r.g;t.it.kcal=r.kcal;t.it.p=r.p;t.it.c=r.c;t.it.f=r.f;
+  if(t.d)persistDia(t.d);
+  S.dt.ed=null;render();toast('Alimento atualizado.');
+}
 function bcIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 5h1.6v14H2zM5 5h1v14H5zM7.6 5h2.2v14H7.6zM11.4 5h1v14h-1zM14 5h1.8v14H14zM17.4 5h1v14h-1zM20 5h2v14h-2z"/></svg>';}
 function addForm(){
   return '<form class="addf" id="add-food" autocomplete="off">'
@@ -1229,7 +1289,8 @@ function viewDieta(){
     h+='<article class="ex" data-mi="'+i+'"><div class="ex-h"><button type="button" class="grip" data-grip="'+i+'" aria-label="Reordenar '+esc(r.nome)+'. Arraste, ou use as setas para cima e para baixo."><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="5" r="1.6"/><circle cx="13" cy="5" r="1.6"/><circle cx="7" cy="10" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="7" cy="15" r="1.6"/><circle cx="13" cy="15" r="1.6"/></svg></button><div style="flex:1;min-width:0"><h3>'+esc(r.nome)+'</h3><span class="tag">'+(r.itens.length?fmtVol(s.kcal)+' kcal · '+macroTxt(s):'vazia')+'</span></div>'
       +(r.itens.length?'':'<button type="button" class="link danger" data-act="rm-meal" data-m="'+i+'">Remover</button>')+'</div>';
     r.itens.forEach(function(it,k){
-      h+='<div class="it fv"><div class="it-n"><b>'+esc(it.nome)+'</b><span>'+fmt(it.g)+' g · '+macroTxt(it)+'</span></div>'
+      if(S.dt.ed&&!S.dt.ed.rec&&S.dt.ed.m===i&&S.dt.ed.k===k){h+=editForm(it);return;}
+      h+='<div class="it fv"><button type="button" class="it-n btn0" data-act="edit-item" data-m="'+i+'" data-k="'+k+'" aria-label="Editar '+esc(it.nome)+'"><b>'+esc(it.nome)+'</b><span>'+fmt(it.g)+' g · '+macroTxt(it)+'</span></button>'
         +'<span class="it-k">'+fmtVol(it.kcal)+'<small>kcal</small></span>'+favStar(it.nome,it.g)
         +'<button type="button" class="xbtn" data-act="rm-item" data-m="'+i+'" data-k="'+k+'" aria-label="Remover '+esc(it.nome)+'">×</button></div>';
     });
@@ -1252,9 +1313,10 @@ function viewDieta(){
   return h;
 }
 function norm(s){return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
-function foodSuggest(){
-  var box=$('#a-sug');if(!box)return;
-  var raw=norm($('#a-nome').value).trim();
+function foodSuggest(pre){
+  pre=pre||'a';
+  var box=$('#'+pre+'-sug');if(!box)return;
+  var raw=norm($('#'+pre+'-nome').value).trim();
   var q=raw.split(/[\s,]+/).filter(function(t){return t&&['de','da','do','e'].indexOf(t)<0;});
   if(!q.length){box.hidden=true;box.innerHTML='';return;}
   var list=[];
@@ -1265,7 +1327,7 @@ function foodSuggest(){
   list=list.slice(0,8);
   if(!list.length||(list.length===1&&list[0].n===raw)){box.hidden=true;box.innerHTML='';return;}
   box.innerHTML=list.map(function(x){
-    return '<button type="button" class="sg" data-act="pick" data-n="'+esc(x.v.nome)+'"><span>'+esc(x.v.nome)+'</span><small>'+(x.v.receita?'receita · ':'')+fmtVol(x.v.kcal)+' kcal</small></button>';
+    return '<button type="button" class="sg" data-act="'+(pre==='e'?'epick':'pick')+'" data-n="'+esc(x.v.nome)+'"><span>'+esc(x.v.nome)+'</span><small>'+(x.v.receita?'receita · ':'')+fmtVol(x.v.kcal)+' kcal</small></button>';
   }).join('');
   box.hidden=false;
 }
@@ -1431,7 +1493,8 @@ function viewRec(){
       +'<label class="f"><span class="cap">Peso final g</span><input type="text" id="rc-pf" inputmode="decimal" value="'+esc(r.pf)+'" placeholder="Opcional"></label></div>'
       +'<p class="last">Peso final é o peso da receita pronta. Sem ele, usa a soma dos ingredientes.</p>';
     r.ings.forEach(function(it,k){
-      h+='<div class="it fv"><div class="it-n"><b>'+esc(it.nome)+'</b><span>'+fmt(it.g)+' g · '+macroTxt(it)+'</span></div>'
+      if(S.dt.ed&&S.dt.ed.rec&&S.dt.ed.k===k){h+=editForm(it);return;}
+      h+='<div class="it fv"><button type="button" class="it-n btn0" data-act="edit-item" data-rec="1" data-k="'+k+'" aria-label="Editar '+esc(it.nome)+'"><b>'+esc(it.nome)+'</b><span>'+fmt(it.g)+' g · '+macroTxt(it)+'</span></button>'
         +'<span class="it-k">'+fmtVol(it.kcal)+'<small>kcal</small></span>'+favStar(it.nome,it.g)
         +'<button type="button" class="xbtn" data-act="rec-rm" data-k="'+k+'" aria-label="Remover '+esc(it.nome)+'">×</button></div>';
     });
@@ -1592,11 +1655,11 @@ function saveMetas(){
 }
 function dietaAct(a,ds){
   var m=+ds.m,k=+ds.k,d;
-  if(a==='dia-prev'){S.dt.data=addDays(S.dt.data,-1);S.dt.add=null;render();}
-  else if(a==='dia-next'){S.dt.data=addDays(S.dt.data,1);S.dt.add=null;render();}
-  else if(a==='dia-hoje'){S.dt.data=hoje();S.dt.add=null;render();}
+  if(a==='dia-prev'){S.dt.data=addDays(S.dt.data,-1);S.dt.add=null;S.dt.ed=null;render();}
+  else if(a==='dia-next'){S.dt.data=addDays(S.dt.data,1);S.dt.add=null;S.dt.ed=null;render();}
+  else if(a==='dia-hoje'){S.dt.data=hoje();S.dt.add=null;S.dt.ed=null;render();}
   else if(a==='edit-metas'){S.dt.edit=!S.dt.edit;render();}
-  else if(a==='open-add'){S.dt.add=m;S.dt.focus=true;render();}
+  else if(a==='open-add'){S.dt.add=m;S.dt.ed=null;S.dt.focus=true;render();}
   else if(a==='close-add'){S.dt.add=null;render();}
   else if(a==='pick'){
     $('#a-nome').value=ds.n;$('#a-sug').hidden=true;
@@ -1604,6 +1667,9 @@ function dietaAct(a,ds){
     if(pf0&&pf0.receita&&!$('#a-g').value)$('#a-g').value=fmt(pf0.porcaoG||100);
     foodPreview();$('#a-g').focus();
   }
+  else if(a==='edit-item'){S.dt.ed={m:m,k:k,rec:!!ds.rec,touched:false};render();var en=$('#e-g');if(en){en.focus();en.select();}edPreview();}
+  else if(a==='edit-cancel'){S.dt.ed=null;render();}
+  else if(a==='epick'){$('#e-nome').value=ds.n;$('#e-sug').hidden=true;edFillFrom(ds.n);edPreview();$('#e-g').focus();}
   else if(a==='fav'){
     var fi=null;
     if(!foods().get(String(ds.n).toLowerCase())){var dd0=diaDoc(S.dt.data);dd0.refeicoes.forEach(function(r){r.itens.forEach(function(x){if(x.nome===ds.n)fi=x;});});if(!fi&&S.rec)S.rec.ings.forEach(function(x){if(x.nome===ds.n)fi=x;});}
@@ -2033,6 +2099,13 @@ function init(){
       var k=known().get(t.value.trim().toLowerCase());
       if(k){$('#f-gr').value=k.grupo;}
     }
+    else if(t.id&&t.id.indexOf('e-')===0&&t.id!=='e-pre'){
+      if(S.dt.ed){
+        if(t.id==='e-nome'){foodSuggest('e');}
+        else if(t.id!=='e-g'){S.dt.ed.touched=true;}
+        edPreview();
+      }
+    }
     else if(t.id&&t.id.indexOf('rc-')===0){
       if(S.rec){
         if(t.id==='rc-nome')S.rec.nome=t.value;else if(t.id==='rc-por')S.rec.por=t.value;else if(t.id==='rc-pf')S.rec.pf=t.value;
@@ -2085,6 +2158,7 @@ function init(){
     var id=e.target.id;
     if(id==='add-ex'){addEx($('#f-ex').value,$('#f-gr').value);}
     else if(id==='add-food'){addFood();}
+    else if(id==='edit-food'){saveEdit();}
     else if(id==='add-meal'){addMeal();}
     else if(id==='f-meta'){saveMetas();}
     else if(id==='f-peso'){salvarPeso();}
