@@ -12,6 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<meta name="build" content="20261016121153">
 <title>Caderno de Cargas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -2002,6 +2003,6 @@ function init(){
 init();
 })();
 </script>
-
+<script>(function(){try{var m=document.querySelector('meta[name=build]');if(!m)return;var id=m.content;function chk(){var a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return;fetch(location.pathname+'?_='+Date.now(),{cache:'no-store'}).then(function(r){return r.text();}).then(function(t){var x=t.match(/name="build" content="([^"]+)"/);if(!x||x[1]===id)return;var k='cc.upd';try{if(sessionStorage.getItem(k)===x[1])return;sessionStorage.setItem(k,x[1]);}catch(e){}location.replace(location.pathname+'?v='+x[1]);}).catch(function(){});}setTimeout(chk,1500);document.addEventListener('visibilitychange',function(){if(!document.hidden)chk();});}catch(e){}})();</script>
 </body>
 </html>
