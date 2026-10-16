@@ -76,6 +76,11 @@ input,select{
 }
 select{appearance:auto}
 input::placeholder{color:var(--muted);opacity:.7}
+input[type=date]{-webkit-appearance:none;appearance:none;text-align:left;min-height:48px;line-height:1.2}
+input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0;min-height:1.2em}
+input[type=text],input[type=email],input[type=password],select{min-height:48px}
+.pw,.addex,.addf,.addm,.mform{align-items:end}
+.pw .btn,.addex .btn,.addm .btn,.bulk .btn{min-height:48px;height:48px}
 input[readonly]{background:var(--surface2);font-weight:600}
 
 .exs{display:flex;flex-direction:column;gap:12px}
