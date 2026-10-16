@@ -264,6 +264,9 @@ h2{font:700 22px/1 var(--f-display);text-transform:uppercase;letter-spacing:.04e
 .scan .btn{background:#fff;color:#111;border-color:#fff;height:48px;min-height:48px}
 .scan .btn.sec{background:transparent;color:#fff;border-color:#777}
 .rcp .it-k{white-space:nowrap}
+.ico{display:inline-flex;align-items:center;gap:7px;text-decoration:none!important}
+.ico svg{width:24px;height:24px;flex:none;fill:currentColor}
+.ico.only{width:44px;justify-content:center;padding:0;border:1px solid var(--line);border-radius:6px}
 .rcp .fields{margin-bottom:0}
 .rcp .tot{font:500 14px/1.5 var(--f-mono);color:var(--ink)}
 .sg:hover{background:var(--surface2)}
@@ -882,13 +885,14 @@ function meter(v,m){
   var p=m>0?Math.min(100,v/m*100):0;
   return '<div class="meter"><i'+(m>0&&v>m?' class="over"':'')+' style="width:'+p.toFixed(1)+'%"></i></div>';
 }
+function bcIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 5h1.6v14H2zM5 5h1v14H5zM7.6 5h2.2v14H7.6zM11.4 5h1v14h-1zM14 5h1.8v14H14zM17.4 5h1v14h-1zM20 5h2v14h-2z"/></svg>';}
 function addForm(){
   return '<form class="addf" id="add-food" autocomplete="off">'
     +'<label class="f"><span class="cap">Alimento</span><input type="text" id="a-nome" placeholder="Ex: frango grelhado"></label>'
     +'<label class="f"><span class="cap">Gramas</span><input type="text" id="a-g" inputmode="decimal" placeholder="100"></label>'
     +'<input type="hidden" id="a-ean">'
     +'<div class="sugs" id="a-sug" hidden></div>'
-    +(window.claude?'':'<button type="button" class="link" data-act="scan" style="grid-column:1/-1;justify-self:start">Escanear código de barras</button>')
+    +'<button type="button" class="link ico" data-act="scan" style="grid-column:1/-1;justify-self:start">'+bcIcon()+'Escanear código de barras</button>'
     +'<button type="button" class="link" data-act="custom" style="grid-column:1/-1;justify-self:start">Alimento fora da lista? Cadastrar o seu</button>'
     +'<div class="cf" id="a-cf" hidden><p class="last">Informe os valores por 100 g, como no rótulo. Ele fica salvo para a próxima vez.</p><div class="mform">'
     +[['a-k','Kcal'],['a-p','Proteína g'],['a-c','Carbo g'],['a-f','Gordura g']].map(function(x){
@@ -1148,7 +1152,7 @@ function viewDieta(){
         +'<button type="button" class="xbtn" data-act="rm-item" data-m="'+i+'" data-k="'+k+'" aria-label="Remover '+esc(it.nome)+'">×</button></div>';
     });
     var yo=r.itens.length?null:mealOntem(i,r.nome);
-    h+=S.dt.add===i?addForm():'<div class="rowacts"><button type="button" class="link" data-act="open-add" data-m="'+i+'">+ Alimento</button>'
+    h+=S.dt.add===i?addForm():'<div class="rowacts"><button type="button" class="link" data-act="open-add" data-m="'+i+'">+ Alimento</button><button type="button" class="link ico only" data-act="open-scan" data-m="'+i+'" aria-label="Escanear código de barras em '+esc(r.nome)+'">'+bcIcon()+'</button>'
       +(yo?'<button type="button" class="link" data-act="rep-meal" data-m="'+i+'">Repetir de ontem ('+fmtVol(sumItens(yo.itens).kcal)+' kcal)</button>':'')+'</div>';
     h+='</article>';
   });
@@ -1243,8 +1247,9 @@ function scanStop(){
   document.body.style.overflow='';
 }
 function scanDone(code){scanStop();lookupEan(code);}
+function scanBlocked(){if(window.claude){toast('Leitor disponível só no site do GitHub Pages.');return true;}return false;}
 function scanStart(){
-  if(SC)return;
+  if(SC||scanBlocked())return;
   var el=scanUi();el.hidden=false;document.body.style.overflow='hidden';
   el.querySelector('#scan-c').value='';
   SC={on:true,stream:null,reader:null};
@@ -1345,7 +1350,7 @@ function viewRec(){
         +'<span class="it-k">'+fmtVol(it.kcal)+'<small>kcal</small></span>'
         +'<button type="button" class="xbtn" data-act="rec-rm" data-k="'+k+'" aria-label="Remover '+esc(it.nome)+'">×</button></div>';
     });
-    h+=S.dt.add==='rec'?addForm():'<div class="rowacts"><button type="button" class="link" data-act="rec-add">+ Ingrediente</button></div>';
+    h+=S.dt.add==='rec'?addForm():'<div class="rowacts"><button type="button" class="link" data-act="rec-add">+ Ingrediente</button><button type="button" class="link ico only" data-act="rec-scan" aria-label="Escanear código de barras para ingrediente">'+bcIcon()+'</button></div>';
     h+='<p class="tot" id="rc-tot" style="white-space:pre-line">'+esc(recTotTxt(r))+'</p>'
       +'<div class="rowacts"><button type="button" class="btn sm" data-act="rec-save">Salvar receita</button><button type="button" class="link" data-act="rec-cancel">Cancelar</button></div></section>';
     return h;
@@ -1517,6 +1522,8 @@ function dietaAct(a,ds){
     foodPreview();$('#a-g').focus();
   }
   else if(a==='scan'){scanStart();}
+  else if(a==='open-scan'){if(scanBlocked())return;S.dt.add=m;S.dt.focus=false;render();scanStart();}
+  else if(a==='rec-scan'){if(scanBlocked())return;S.dt.add='rec';S.dt.focus=false;render();scanStart();}
   else if(a==='rec-new'){S.rec={nome:'',por:'1',pf:'',ings:[],orig:null};S.dt.add='rec';S.dt.focus=true;render();}
   else if(a==='rec-edit'){var rf=foods().get(String(ds.n).toLowerCase());if(rf){S.rec={nome:rf.nome,por:String(rf.por||1),pf:rf.pf?String(rf.pf):'',ings:clone(rf.ing||[]),orig:rf.nome};S.dt.add=null;render();}}
   else if(a==='rec-del'){S.custom=S.custom.filter(function(c){return String(c.nome).toLowerCase()!==String(ds.n).toLowerCase();});queueSave({id:'alimentos',tipo:'alimentos',itens:S.custom});render();toast('Receita excluída.');}
