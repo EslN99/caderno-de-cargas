@@ -76,6 +76,7 @@ input,select{
 }
 select{appearance:auto}
 input::placeholder{color:var(--muted);opacity:.7}
+input[readonly]{background:var(--surface2);font-weight:600}
 
 .exs{display:flex;flex-direction:column;gap:12px}
 .ex{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -749,7 +750,9 @@ function sumDia(d){
   if(d)d.refeicoes.forEach(function(r){var s=sumItens(r.itens);t.kcal+=s.kcal;t.p+=s.p;t.c+=s.c;t.f+=s.f;});
   return t;
 }
-function metasAtuais(){return S.metas||{kcal:2400,p:160,c:280,f:70};}
+function kcalDe(p,c,f){return Math.round(num(p)*4+num(c)*4+num(f)*9);}
+function metasAtuais(){return S.metas||{kcal:kcalDe(160,280,70),p:160,c:280,f:70};}
+function syncKcal(){var k=$('#m-k');if(k)k.value=kcalDe($('#m-p').value,$('#m-c').value,$('#m-f').value);}
 function prevDia(){
   var best=null;
   Object.keys(S.dias).forEach(function(k){
@@ -1000,8 +1003,8 @@ function viewDieta(){
     +'<div class="rowacts"><button type="button" class="link" data-act="edit-metas">'+(S.dt.edit?'Fechar metas':'Ajustar metas')+'</button></div>';
   if(S.dt.edit){
     h+='<form class="mform" id="f-meta" autocomplete="off">'
-      +[['m-k','Kcal',mt.kcal],['m-p','Proteína g',mt.p],['m-c','Carbo g',mt.c],['m-f','Gordura g',mt.f]].map(function(x){
-        return '<label class="f"><span class="cap">'+x[1]+'</span><input type="text" id="'+x[0]+'" inputmode="decimal" value="'+esc(x[2])+'"></label>';
+      +[['m-p','Proteína g',mt.p],['m-c','Carbo g',mt.c],['m-f','Gordura g',mt.f],['m-k','Kcal (automático)',kcalDe(mt.p,mt.c,mt.f)]].map(function(x){
+        return '<label class="f"><span class="cap">'+x[1]+'</span><input type="text" id="'+x[0]+'" inputmode="decimal" value="'+esc(x[2])+'"'+(x[0]==='m-k'?' readonly tabindex="-1"':'')+'></label>';
       }).join('')
       +'<button type="submit" class="btn sm" style="grid-column:1/-1">Salvar metas</button></form>';
   }
@@ -1184,7 +1187,8 @@ function addMeal(){
   var d=diaDoc(S.dt.data);d.refeicoes.push({nome:n,itens:[]});persistDia(d);render();
 }
 function saveMetas(){
-  var mt={id:'metas',tipo:'metas',kcal:num($('#m-k').value),p:num($('#m-p').value),c:num($('#m-c').value),f:num($('#m-f').value)};
+  var mt={id:'metas',tipo:'metas',p:num($('#m-p').value),c:num($('#m-c').value),f:num($('#m-f').value)};
+  mt.kcal=kcalDe(mt.p,mt.c,mt.f);
   if(mt.kcal<=0){toast('Informe a meta de calorias.');return;}
   S.metas=mt;S.dt.edit=false;queueSave(mt);render();toast('Metas salvas.');
 }
@@ -1542,7 +1546,8 @@ function init(){
   });
   v.addEventListener('input',function(e){
     var t=e.target;
-    if(t.id==='f-data'){S.draft.data=t.value;saveDraft();}
+    if(t.id==='m-p'||t.id==='m-c'||t.id==='m-f'){syncKcal();}
+    else if(t.id==='f-data'){S.draft.data=t.value;saveDraft();}
     else if(t.id==='f-nome'){S.draft.nome=t.value;saveDraft();}
     else if(t.id==='f-ex'){
       var k=known().get(t.value.trim().toLowerCase());
