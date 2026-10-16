@@ -1,10 +1,10 @@
 -- Caderno de Cargas: esquema do Supabase
--- Uma linha por documento do app: sessao, dia, metas, alimentos, peso.
+-- Uma linha por documento do app: sessao, dia, metas, alimentos, peso, config.
 
 create table if not exists public.registros (
   user_id    uuid        not null default auth.uid() references auth.users(id) on delete cascade,
   id         text        not null,
-  tipo       text        not null check (tipo in ('sessao','dia','metas','alimentos','peso')),
+  tipo       text        not null check (tipo in ('sessao','dia','metas','alimentos','peso','config')),
   dia        date,
   doc        jsonb       not null,
   updated_at timestamptz not null default now(),

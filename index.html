@@ -63,7 +63,11 @@ h1{font:700 clamp(30px,8.5vw,46px)/.95 var(--f-display);text-transform:uppercase
 .tabs button[aria-current="page"]{color:var(--ink);border-top-color:var(--accent)}
 .tabs[hidden]{display:none}
 
-.fields{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:10px;margin-bottom:14px}
+.fields{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:10px;align-items:end;margin-bottom:14px}
+.fields .cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fields input,.fields select{height:48px;min-height:48px;line-height:1.2;margin:0}
+.fields input[type=date]{-webkit-appearance:none;appearance:none;text-align:left}
+.fields select{-webkit-appearance:none;appearance:none;padding-right:30px;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%235B6B7A' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center}
 label.f{display:flex;flex-direction:column;gap:5px;min-width:0}
 .cap{font:500 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 input,select{
@@ -151,6 +155,12 @@ input.num{text-align:right;font:500 18px var(--f-mono);font-variant-numeric:tabu
 .legend{font:400 12px var(--f-mono);color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:6px}
 .scroll{overflow-x:auto}
+.grip{flex:none;width:36px;height:44px;margin:-8px 0 -8px -10px;border:0;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab;border-radius:6px}
+.grip svg{width:18px;height:18px;fill:currentColor}
+.grip:focus-visible{outline:2px solid var(--focus)}
+.ex-h{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.ex.lift{position:relative;z-index:10;box-shadow:0 12px 30px rgba(0,0,0,.25);border-color:var(--ink)}
+body.dragging,body.dragging *{-webkit-user-select:none;user-select:none;cursor:grabbing}
 button,.chip,.dv,[data-act]{touch-action:manipulation}
 @media (max-width:480px){
   .sub{display:none}
@@ -300,7 +310,7 @@ var MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'
 var DOW=['dom','seg','ter','qua','qui','sex','sáb'];
 var QUICK=['Supino reto','Agachamento livre','Remada curvada','Desenvolvimento','Rosca direta','Leg press'];
 
-var S={tab:'treino',tmode:'plano',mp:null,sessions:[],dias:{},metas:null,custom:[],pesos:{},raw:[],bk:null,sb:null,user:null,pw:{data:hoje()},dt:{data:hoje(),edit:false,add:null,focus:false},H:new Map(),ready:false,mode:'carregando',draft:null,prog:{ex:null,metric:'carga'},open:null,del:null,busy:false};
+var S={tab:'treino',tmode:'plano',mp:null,sessions:[],dias:{},metas:null,custom:[],pesos:{},cfg:null,dragging:false,raw:[],bk:null,sb:null,user:null,pw:{data:hoje()},dt:{data:hoje(),edit:false,add:null,focus:false},H:new Map(),ready:false,mode:'carregando',draft:null,prog:{ex:null,metric:'carga'},open:null,del:null,busy:false};
 var store=null;
 
 function $(s){return document.querySelector(s);}
@@ -457,7 +467,7 @@ function localStore(){
   };
 }
 function onSessions(list){
-  var ss=[],dias={},metas=null,custom=[],pesos={};
+  var ss=[],dias={},metas=null,custom=[],pesos={},cfg=null;
   list.forEach(function(d){
     var t=d.tipo||'sessao';
     if(t==='sessao')ss.push(d);
@@ -465,8 +475,10 @@ function onSessions(list){
     else if(t==='metas')metas=d;
     else if(t==='alimentos')custom=d.itens||[];
     else if(t==='peso')pesos[d.data]=d;
+    else if(t==='config')cfg=d;
   });
-  S.raw=list;S.sessions=ss;S.dias=dias;S.metas=metas;S.custom=custom;S.pesos=pesos;buildH();S.ready=true;
+  S.raw=list;S.sessions=ss;S.dias=dias;S.metas=metas;S.custom=custom;S.pesos=pesos;S.cfg=cfg;buildH();S.ready=true;
+  if(S.dragging)return;
   var a=document.activeElement;
   var typing=(S.tab==='treino'||S.tab==='dieta'||S.tab==='peso'||S.tab==='stats')&&a&&a.matches&&a.matches('#view input,#view select,#view textarea');
   if(typing){if(S.tab==='treino')updateMeta();fillLists();}else render();
@@ -725,7 +737,8 @@ function queueSave(doc){
 function diaDoc(data){
   var d=S.dias[data];
   if(d)return clone(d);
-  return {id:'d_'+data,tipo:'dia',data:data,refeicoes:REFEICOES.map(function(n){return {nome:n,itens:[]};})};
+  var nomes=S.cfg&&S.cfg.ordemRefeicoes&&S.cfg.ordemRefeicoes.length?S.cfg.ordemRefeicoes:REFEICOES;
+  return {id:'d_'+data,tipo:'dia',data:data,refeicoes:nomes.map(function(n){return {nome:n,itens:[]};})};
 }
 function persistDia(d){S.dias[d.data]=d;if(pronto())queueSave(d);}
 function sumItens(itens){
@@ -1000,7 +1013,7 @@ function viewDieta(){
   h+='<div class="exs">';
   d.refeicoes.forEach(function(r,i){
     var s=sumItens(r.itens);
-    h+='<article class="ex"><div class="ex-h"><div><h3>'+esc(r.nome)+'</h3><span class="tag">'+(r.itens.length?fmtVol(s.kcal)+' kcal · '+macroTxt(s):'vazia')+'</span></div>'
+    h+='<article class="ex" data-mi="'+i+'"><div class="ex-h"><button type="button" class="grip" data-grip="'+i+'" aria-label="Reordenar '+esc(r.nome)+'. Arraste, ou use as setas para cima e para baixo."><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="5" r="1.6"/><circle cx="13" cy="5" r="1.6"/><circle cx="7" cy="10" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="7" cy="15" r="1.6"/><circle cx="13" cy="15" r="1.6"/></svg></button><div style="flex:1;min-width:0"><h3>'+esc(r.nome)+'</h3><span class="tag">'+(r.itens.length?fmtVol(s.kcal)+' kcal · '+macroTxt(s):'vazia')+'</span></div>'
       +(r.itens.length?'':'<button type="button" class="link danger" data-act="rm-meal" data-m="'+i+'">Remover</button>')+'</div>';
     r.itens.forEach(function(it,k){
       h+='<div class="it"><div class="it-n"><b>'+esc(it.nome)+'</b><span>'+fmt(it.g)+' g · '+macroTxt(it)+'</span></div>'
@@ -1070,6 +1083,102 @@ function addFood(){
   d.refeicoes[S.dt.add].itens.push(item);
   persistDia(d);S.dt.focus=true;render();
 }
+/* reordenar refeições: segurar e arrastar */
+var DR=null;
+function dragApply(){
+  var c=DR.card,rc=c.getBoundingClientRect(),nat=rc.top-DR.tx,want=DR.y-DR.grab;
+  DR.tx=want-nat;c.style.transform='translateY('+DR.tx+'px)';
+}
+function dragPlace(){
+  if(!DR)return;
+  dragApply();
+  var c=DR.card,list=DR.list,rc=c.getBoundingClientRect(),mid=rc.top+rc.height/2;
+  var pv=c.previousElementSibling,nx=c.nextElementSibling;
+  if(pv){var pr=pv.getBoundingClientRect();if(mid<pr.top+pr.height/2){list.insertBefore(c,pv);dragApply();return;}}
+  if(nx){var nr=nx.getBoundingClientRect();if(mid>nr.top+nr.height/2){list.insertBefore(nx,c);dragApply();}}
+}
+function dragLoop(){
+  if(!DR)return;
+  if(DR.y<80)window.scrollBy(0,-14);
+  else if(DR.y>window.innerHeight-140)window.scrollBy(0,14);
+  dragPlace();
+  DR.raf=requestAnimationFrame(dragLoop);
+}
+function dragStart(card,y){
+  if(DR||S.tab!=='dieta')return false;
+  var rc=card.getBoundingClientRect();
+  DR={card:card,list:card.parentNode,grab:y-rc.top,tx:0,y:y,raf:0};
+  S.dragging=true;card.classList.add('lift');document.body.classList.add('dragging');
+  try{if(navigator.vibrate)navigator.vibrate(12);}catch(e){}
+  DR.raf=requestAnimationFrame(dragLoop);
+  return true;
+}
+function dragEnd(){
+  if(!DR)return;
+  var c=DR.card,list=DR.list;cancelAnimationFrame(DR.raf);
+  var order=[].map.call(list.children,function(e){return +e.dataset.mi;});
+  DR=null;S.dragging=false;document.body.classList.remove('dragging');
+  c.style.transform='';c.classList.remove('lift');
+  var changed=order.some(function(v,i){return v!==i;});
+  if(changed)reorderMeals(order);else render();
+}
+function reorderMeals(order){
+  var d=diaDoc(S.dt.data);
+  if(order.length!==d.refeicoes.length){render();return;}
+  d.refeicoes=order.map(function(i){return d.refeicoes[i];});
+  S.dt.add=null;
+  persistDia(d);
+  var cfg={id:'config',tipo:'config',ordemRefeicoes:d.refeicoes.map(function(r){return r.nome;})};
+  S.cfg=cfg;
+  if(store)queueSave(cfg);
+  render();toast('Ordem salva.');
+}
+function moveMeal(i,dir){
+  var d=diaDoc(S.dt.data),j=i+dir;
+  if(j<0||j>=d.refeicoes.length)return;
+  var order=d.refeicoes.map(function(_,k){return k;});
+  order[i]=j;order[j]=i;
+  reorderMeals(order);
+  var g=document.querySelector('[data-mi="'+j+'"] .grip');if(g)g.focus();
+}
+function initDrag(v){
+  var lp=null;
+  function stopLp(){if(lp){clearTimeout(lp.t);lp=null;}}
+  v.addEventListener('pointerdown',function(e){
+    var g=e.target.closest&&e.target.closest('.grip');
+    if(!g||(e.pointerType==='mouse'&&e.button!==0))return;
+    var card=g.closest('.ex');if(!card||!dragStart(card,e.clientY))return;
+    e.preventDefault();
+    try{g.setPointerCapture(e.pointerId);}catch(x){}
+    function mv(ev){if(DR)DR.y=ev.clientY;}
+    function up(){g.removeEventListener('pointermove',mv);g.removeEventListener('pointerup',up);g.removeEventListener('pointercancel',up);dragEnd();}
+    g.addEventListener('pointermove',mv);g.addEventListener('pointerup',up);g.addEventListener('pointercancel',up);
+  });
+  v.addEventListener('keydown',function(e){
+    var g=e.target.closest&&e.target.closest('.grip');
+    if(!g)return;
+    if(e.key==='ArrowUp'){e.preventDefault();moveMeal(+g.dataset.grip,-1);}
+    else if(e.key==='ArrowDown'){e.preventDefault();moveMeal(+g.dataset.grip,1);}
+  });
+  v.addEventListener('touchstart',function(e){
+    stopLp();
+    var t=e.target;
+    if(S.tab!=='dieta'||!t.closest||!t.closest('.ex-h')||t.closest('button,a,input,select'))return;
+    var card=t.closest('.ex'),p=e.touches[0];
+    lp={x:p.clientX,y:p.clientY,go:false};
+    lp.t=setTimeout(function(){if(lp&&dragStart(card,lp.y))lp.go=true;},420);
+  },{passive:true});
+  v.addEventListener('touchmove',function(e){
+    if(!lp)return;
+    var p=e.touches[0];
+    if(lp.go){e.preventDefault();if(DR)DR.y=p.clientY;return;}
+    if(Math.abs(p.clientX-lp.x)>10||Math.abs(p.clientY-lp.y)>10)stopLp();
+  },{passive:false});
+  function tend(){var go=lp&&lp.go;stopLp();if(go)dragEnd();}
+  v.addEventListener('touchend',tend);
+  v.addEventListener('touchcancel',tend);
+  v.addEventListener('contextmenu',function(e){if(e.target.closest&&e.target.closest('.ex-h'))e.preventDefault();});
+}
 function addMeal(){
   var n=$('#f-meal').value.trim();if(!n)return;
   var d=diaDoc(S.dt.data);d.refeicoes.push({nome:n,itens:[]});persistDia(d);render();
@@ -1106,7 +1215,7 @@ function dietaAct(a,ds){
   else if(a==='bk-go'){
     var arr;
     try{arr=JSON.parse($('#bk-t').value);}catch(x){toast('O texto não é um JSON válido.');return;}
-    var TP=['sessao','dia','metas','alimentos','peso'];
+    var TP=['sessao','dia','metas','alimentos','peso','config'];
     if(!Array.isArray(arr)){toast('Formato inesperado.');return;}
     var okd=arr.filter(function(d){return d&&typeof d==='object'&&typeof d.id==='string'&&d.id&&TP.indexOf(d.tipo||'sessao')>=0;});
     if(!okd.length||okd.length>5000){toast('Nenhum registro válido.');return;}
@@ -1194,7 +1303,7 @@ function viewPlano(){
   h+='<div class="ptitle"><h2>'+div+' · '+gr.join(', ')+'</h2>'
     +(div!==nx?'<button type="button" class="link" data-act="div-next">Ir para o próximo ('+nx+')</button>':'<span class="tag">próximo na sequência</span>')+'</div>';
   h+='<section class="fields"><label class="f"><span class="cap">Data</span><input type="date" id="p-data" value="'+esc(S.mp.data)+'"></label>'
-    +'<label class="f"><span class="cap">Arredondar cargas para</span><select id="p-step">'
+    +'<label class="f"><span class="cap">Arredondar para</span><select id="p-step">'
     +[['0','Sem arredondar'],['0.5','0,5 kg'],['1','1 kg'],['2.5','2,5 kg']].map(function(o){return '<option value="'+o[0]+'"'+(String(S.mp.step)===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')
     +'</select></label></section>';
   h+='<div class="exs">';
@@ -1426,6 +1535,7 @@ function init(){
     S.tab=b.dataset.tab;render();window.scrollTo(0,0);
   });
   var v=$('#view');
+  initDrag(v);
   v.addEventListener('click',function(e){
     var b=e.target.closest('[data-act]');if(!b||b.disabled)return;
     act(b.dataset.act,b.dataset);
