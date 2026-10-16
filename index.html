@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="build" content="20261016163656">
+<meta name="build" content="20261016165019">
 <title>Caderno de Cargas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -273,6 +273,12 @@ h2{font:700 22px/1 var(--f-display);text-transform:uppercase;letter-spacing:.04e
 .edf .sugs{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
 .it.fv{grid-template-columns:minmax(0,1fr) auto 40px 40px;gap:4px 6px}
 .star{color:var(--muted);width:40px}
+.acc{display:inline-flex;align-items:center;gap:10px;min-height:44px;margin:18px 0 8px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:700 18px/1 var(--f-display);text-transform:uppercase;letter-spacing:.04em}
+.acc small{font:400 12px var(--f-mono);color:var(--muted);letter-spacing:0;text-transform:none;margin-left:4px}
+.acc svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.acc[aria-expanded=true] svg{transform:rotate(180deg)}
+.acc[aria-expanded=true]{margin-bottom:10px}
+@media (prefers-reduced-motion: reduce){.acc svg{transition:none}}
 .star svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
 .star.on{color:var(--accent)}
 .star.on svg{fill:currentColor}
@@ -959,8 +965,10 @@ function favPicker(){
   return h+'</div>';
 }
 function viewFav(){
-  var gs=favGroups();
-  var h='<h2>Favoritos</h2>';
+  var gs=favGroups(),open=!!S.dt.favSec;
+  var n=gs.reduce(function(a,g){return a+g.l.length;},0);
+  var h='<div><button type="button" class="acc" data-act="fav-sec" aria-expanded="'+open+'"><span>Favoritos<small>('+n+')</small></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5"/></svg></button></div>';
+  if(!open)return h;
   if(!gs.length)return h+'<p class="last">Toque na estrela de um alimento lançado para favoritar. Eles aparecem ao adicionar novos alimentos.</p>';
   h+='<section class="ex">';
   gs.forEach(function(g){
@@ -1675,6 +1683,7 @@ function dietaAct(a,ds){
     if(!foods().get(String(ds.n).toLowerCase())){var dd0=diaDoc(S.dt.data);dd0.refeicoes.forEach(function(r){r.itens.forEach(function(x){if(x.nome===ds.n)fi=x;});});if(!fi&&S.rec)S.rec.ings.forEach(function(x){if(x.nome===ds.n)fi=x;});}
     toggleFav(ds.n,num(ds.g),fi);render();
   }
+  else if(a==='fav-sec'){S.dt.favSec=!S.dt.favSec;render();}
   else if(a==='fav-tog'){S.dt.favOpen=S.dt.favOpen===false;render();}
   else if(a==='fav-use'){
     $('#a-nome').value=ds.n;$('#a-sug').hidden=true;$('#a-cf').hidden=true;$('#a-ean').value='';
