@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="build" content="20261016165019">
+<meta name="build" content="20261017111008">
 <title>Caderno de Cargas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -273,6 +273,15 @@ h2{font:700 22px/1 var(--f-display);text-transform:uppercase;letter-spacing:.04e
 .edf .sugs{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
 .it.fv{grid-template-columns:minmax(0,1fr) auto 40px 40px;gap:4px 6px}
 .star{color:var(--muted);width:40px}
+.tmr{display:inline-flex;align-items:center;flex:none}
+.tmr .xbtn{width:40px;height:40px;color:var(--ink)}
+.tmr .xbtn svg{width:20px;height:20px;fill:currentColor;stroke:none}
+.tmr .tr svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tmr .tp{border:1px solid var(--line);border-radius:50%;width:40px;height:40px}
+.tmr.run .tp{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tmr .tt{font:500 15px var(--f-mono);font-variant-numeric:tabular-nums;min-width:3.4em;text-align:center}
+.tmr.run .tt{color:var(--accent)}
+.tmr [hidden]{display:none}
 .acc{display:inline-flex;align-items:center;gap:10px;min-height:44px;margin:18px 0 8px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:700 18px/1 var(--f-display);text-transform:uppercase;letter-spacing:.04em}
 .acc small{font:400 12px var(--f-mono);color:var(--muted);letter-spacing:0;text-transform:none;margin-left:4px}
 .acc svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
@@ -632,12 +641,49 @@ function updateMeta(){
 /* telas */
 function iconMinus(){return '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg>';}
 function iconPlus(){return '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M8 3v10"/></svg>';}
+var TM={};
+try{var tr0=localStorage.getItem('cc.tm');if(tr0){var to=JSON.parse(tr0);if(to&&typeof to==='object')TM=to;}}catch(e){}
+function tmSave(){try{localStorage.setItem('cc.tm',JSON.stringify(TM));}catch(e){}}
+function tmMs(k){var t=TM[k];if(!t)return 0;return (t.acc||0)+(t.t0?Date.now()-t.t0:0);}
+function tmFmt(ms){
+  var s=Math.floor(ms/1000),hh=Math.floor(s/3600),m=Math.floor(s%3600/60),ss=s%60;
+  return hh>0?hh+':'+(m<10?'0':'')+m+':'+(ss<10?'0':'')+ss:m+':'+(ss<10?'0':'')+ss;
+}
+var TM_PLAY='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4.5v11l9-5.5z"/></svg>',TM_PAUSE='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4.5h3v11H6zM11 4.5h3v11h-3z"/></svg>';
+var TM_RESET='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 0 2-4.5M4 3.5V7h3.5"/></svg>';
+function tmHtml(key){
+  var k=esc(key);
+  return '<span class="tmr" data-tm="'+k+'"><button type="button" class="xbtn tp" data-act="tm" data-tk="'+k+'" aria-label="Iniciar cronômetro">'+TM_PLAY+'</button>'
+    +'<b class="tt" role="timer">0:00</b>'
+    +'<button type="button" class="xbtn tr" data-act="tm-reset" data-tk="'+k+'" aria-label="Zerar cronômetro" hidden>'+TM_RESET+'</button></span>';
+}
+function tmUpdate(){
+  var els=document.querySelectorAll('[data-tm]'),run=false;
+  for(var i=0;i<els.length;i++){
+    var el=els[i],key=el.getAttribute('data-tm'),t=TM[key],on=!!(t&&t.t0),ms=tmMs(key);
+    if(on)run=true;
+    var tt=el.querySelector('.tt'),s=tmFmt(ms);if(tt.textContent!==s)tt.textContent=s;
+    el.classList.toggle('run',on);
+    var pb=el.querySelector('.tp'),lab=on?'Pausar cronômetro':(ms>0?'Retomar cronômetro':'Iniciar cronômetro');
+    if(pb.getAttribute('aria-label')!==lab){pb.setAttribute('aria-label',lab);pb.innerHTML=on?TM_PAUSE:TM_PLAY;}
+    var rb=el.querySelector('.tr');rb.hidden=!(ms>0||on);
+  }
+  return run;
+}
+function tmToggle(key){
+  var t=TM[key]||(TM[key]={acc:0,t0:0});
+  if(t.t0){t.acc=(t.acc||0)+Date.now()-t.t0;t.t0=0;}else t.t0=Date.now();
+  tmSave();tmUpdate();
+}
+function tmReset(key){delete TM[key];tmSave();tmUpdate();}
+setInterval(function(){if(document.querySelector('.tmr.run'))tmUpdate();},500);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)tmUpdate();});
 var GRIP_SVG='<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="5" r="1.6"/><circle cx="13" cy="5" r="1.6"/><circle cx="7" cy="10" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="7" cy="15" r="1.6"/><circle cx="13" cy="15" r="1.6"/></svg>';
 function exCard(ex,i,kind){
   var last=lastOf(ex.nome),at='data-dk="'+kind+'" data-i="'+i+'"',h='';
   h+='<article class="ex" data-mi="'+i+'"><div class="ex-h"><button type="button" class="grip" data-grip="'+i+'" aria-label="Reordenar '+esc(ex.nome)+'. Arraste, ou use as setas para cima e para baixo.">'+GRIP_SVG+'</button>'
     +'<input type="text" class="exname" '+at+' data-f="nome" aria-label="Nome do exercício" autocomplete="off" value="'+esc(ex.nome)+'">'
-    +'<button type="button" class="link danger" data-act="rm-ex" '+at+'>Remover</button></div>';
+    +tmHtml(kind+'|'+ex.nome)+'<button type="button" class="link danger" data-act="rm-ex" '+at+'>Remover</button></div>';
   h+='<div class="exopt"><label class="f"><span class="cap">Grupo</span><select '+at+' data-f="grupo" aria-label="Grupo muscular">'
     +GRUPOS.map(function(g){return '<option'+(g===ex.grupo?' selected':'')+'>'+g+'</option>';}).join('')
     +(GRUPOS.indexOf(ex.grupo)<0?'<option selected>'+esc(ex.grupo)+'</option>':'')+'</select></label>'
@@ -1816,7 +1862,7 @@ function viewPlano(){
     h+=sl.o.length>1
       ?'<select class="sel" data-pm="o" data-k="'+k+'" aria-label="Variação do exercício">'+sl.o.map(function(o,i){return '<option value="'+i+'"'+(i===oi?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select>'
       :'<h3>'+esc(nome)+'</h3>';
-    h+='</div>'+(url?'<a class="vid" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Vídeo</a>':'')+'</div>';
+    h+='</div>'+tmHtml('plano|'+nome)+(url?'<a class="vid" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Vídeo</a>':'')+'</div>';
     h+='<div class="wrow"><label class="f wl"><span class="cap">Carga de trabalho kg</span>'
       +'<input class="num" type="text" inputmode="decimal" autocomplete="off" data-pm="w" data-k="'+k+'" value="'+esc(st.w)+'" placeholder="0"></label>'
       +'<div><p class="hint">'+li.txt+'</p>'
@@ -1907,6 +1953,7 @@ function render(){
   fillLists();
   var cur=document.querySelector('#tabs [aria-current]');if(cur&&cur.scrollIntoView)cur.scrollIntoView({inline:'nearest',block:'nearest'});
   if(S.tab==='treino')updateMeta();
+  tmUpdate();
   if(S.tab==='dieta'&&S.dt.focus){S.dt.focus=false;var fa=$('#a-nome');if(fa)fa.focus();}
 }
 
@@ -2038,6 +2085,8 @@ async function rmDemo(){
 
 function act(a,ds){
   var i=+ds.i,j=+ds.j;
+  if(a==='tm'){tmToggle(ds.tk);return;}
+  if(a==='tm-reset'){tmReset(ds.tk);return;}
   if(a==='quick'){addEx(ds.n);}
   else if(a==='add-set'||a==='sets-inc'){
     var K=kd(ds),ex=DD(K).exercicios[i];if(!ex)return;
