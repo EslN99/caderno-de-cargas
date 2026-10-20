@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="build" content="20261020181454">
+<meta name="build" content="20261020181525">
 <title>Caderno de Cargas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -2044,6 +2044,7 @@ function shareUi(){
   el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label','Imagem do treino para story');
   el.innerHTML='<div class="box"><h3>Imagem para story</h3><canvas id="shr-c" aria-label="Prévia da imagem do story"></canvas>'
     +'<div class="acts"><a class="btn" id="shr-dl" download="treino-story.png" href="#">Baixar imagem</a>'
+    +'<p class="last full" id="shr-hint" hidden>O download funciona no site do GitHub Pages. Aqui só a prévia.</p>'
     +'<button type="button" class="btn sec" id="shr-sh" hidden>Compartilhar</button>'
     +'<button type="button" class="link full" id="shr-x">Fechar</button></div></div>';
   document.body.appendChild(el);
@@ -2064,6 +2065,7 @@ function showShare(s){
   el.hidden=false;document.body.style.overflow='hidden';
   var cv=el.querySelector('#shr-c'),dl=el.querySelector('#shr-dl'),sb=el.querySelector('#shr-sh');
   dl.removeAttribute('href');sb.hidden=true;
+  var inArt=!!window.claude;dl.hidden=inArt;var hn=el.querySelector('#shr-hint');if(hn)hn.hidden=!inArt;
   var fonts=['700 100px "Barlow Condensed"','600 36px Barlow','500 26px "IBM Plex Mono"'];
   var ld=document.fonts&&document.fonts.load?Promise.all(fonts.map(function(f){return document.fonts.load(f,'A1 kg×');})):Promise.resolve();
   ld.catch(function(){}).then(function(){
